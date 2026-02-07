@@ -5,29 +5,52 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
-const defaultLoggingEndpoint = "https://api.worker.helicone.ai/custom/v1/log"
+const defaultLoggingBaseURL = "https://api.worker.helicone.ai"
 
 // ManualLogger represents the Helicone manual logger
 type ManualLogger struct {
-	apiKey          string
-	headers         map[string]string
-	loggingEndpoint string
+	apiKey           string
+	headers          map[string]string
+	loggingBaseURL   string
+	defaultProvider  *Provider
 }
 
-// New creates a new instance of ManualLogger
-func New(opts LoggerOptions) *ManualLogger {
-	endpoint := opts.LoggingEndpoint
-	if endpoint == "" {
-		endpoint = defaultLoggingEndpoint
+// getLoggingEndpoint returns the full URL for the given provider.
+// If provider is nil or ProviderCustom, returns the custom log path.
+func (l *ManualLogger) getLoggingEndpoint(provider *Provider) string {
+	p := provider
+	if p == nil {
+		p = l.defaultProvider
 	}
+	if p == nil || *p == ProviderCustom {
+		return l.loggingBaseURL + "/custom/v1/log"
+	}
+	switch *p {
+	case ProviderOpenAI:
+		return l.loggingBaseURL + "/oai/v1/log"
+	case ProviderAnthropic:
+		return l.loggingBaseURL + "/anthropic/v1/log"
+	default:
+		return l.loggingBaseURL + "/custom/v1/log"
+	}
+}
 
+// New creates a new instance of ManualLogger.
+// LoggingEndpoint is the base URL (e.g. "https://api.worker.helicone.ai"); leave empty for default.
+func New(opts LoggerOptions) *ManualLogger {
+	baseURL := opts.LoggingEndpoint
+	if baseURL == "" {
+		baseURL = defaultLoggingBaseURL
+	}
 	return &ManualLogger{
 		apiKey:          opts.APIKey,
 		headers:         opts.Headers,
-		loggingEndpoint: endpoint,
+		loggingBaseURL:  strings.TrimSuffix(baseURL, "/"),
+		defaultProvider: opts.Provider,
 	}
 }
 
@@ -144,7 +167,8 @@ func (l *ManualLogger) SendLog(request HeliconeLogRequest, response interface{},
 		return fmt.Errorf("error marshaling payload: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", l.loggingEndpoint, bytes.NewBuffer(jsonData))
+	endpoint := l.getLoggingEndpoint(options.Provider)
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}

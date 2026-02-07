@@ -85,18 +85,34 @@ type Timing struct {
 	TimeToFirstToken *int `json:"timeToFirstToken,omitempty"`
 }
 
-// LoggerOptions represents the configuration options for the logger
+// Provider identifies the Helicone logging backend. It is used to select the
+// correct API path (/oai/v1/log, /anthropic/v1/log, or /custom/v1/log).
+type Provider string
+
+const (
+	ProviderOpenAI     Provider = "openai"
+	ProviderAnthropic  Provider = "anthropic"
+	ProviderCustom     Provider = "custom"
+)
+
+// LoggerOptions represents the configuration options for the logger.
+// LoggingEndpoint is the base URL (e.g. "https://api.worker.helicone.ai"); the
+// path is chosen from Provider. Leave LoggingEndpoint empty to use the default.
+// Provider is the default provider for all logs from this logger; leave nil for custom.
 type LoggerOptions struct {
 	APIKey          string
 	Headers         map[string]string
 	LoggingEndpoint string
+	Provider        *Provider
 }
 
-// LogOptions represents options for logging a request
+// LogOptions represents options for logging a request.
+// Provider overrides the logger's default for this call; nil uses the logger default or custom.
 type LogOptions struct {
 	StartTime         int64
 	EndTime           int64
 	AdditionalHeaders map[string]string
 	TimeToFirstToken  *int
 	Status            int
+	Provider          *Provider
 }
